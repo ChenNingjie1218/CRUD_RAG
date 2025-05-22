@@ -9,3 +9,5 @@ tmp*
 real_config*
 merged.json
 *.sh
+output/
+.cache/

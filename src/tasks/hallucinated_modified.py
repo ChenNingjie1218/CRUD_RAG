@@ -9,13 +9,16 @@ from src.metric.common import (
     bert_score,
 )
 from src.metric.quest_eval import QuestEval
+# from src.metric.quest_eval import LocalQuestEval
 
 
 class HalluModified(BaseTask):
     def __init__(
             self, 
             output_dir: str = './output',
-            quest_eval_model: str = "gpt-3.5-turbo",
+            # quest_eval_model: str = "gpt-3.5-turbo",
+            quest_eval_model: str = "DeepSeek-R1-Distill-Qwen-7B",
+            # quest_eval_model: str = "Qwen2.5-7B-Instruct",
             use_quest_eval: bool = False,
             use_bert_score: bool = False,
         ):
@@ -26,20 +29,11 @@ class HalluModified(BaseTask):
         self.use_quest_eval = use_quest_eval
         self.use_bert_score = use_bert_score
         if self.use_quest_eval: 
-            self.quest_eval = QuestEval(
+            # self.quest_eval = QuestEval(
+            self.quest_eval = LocalQuestEval(
                 model_name=quest_eval_model, temperature=0.1, 
                 max_new_tokens=1280, task_name=self.__class__.__name__
             )
-    
-    def set_model(self, model, retriever) -> None:
-        self.model = model
-        self.retriever = retriever
-    
-    def retrieve_docs(self, obj:dict) -> str:
-        query_text = obj["newsBeginning"]
-        retrieve_context = self.retriever.search_docs(query_text)
-        retrieve_context = retrieve_context.split('\nGiven the context information')[0]
-        return retrieve_context
 
     def model_generation(self, obj:dict):
         if obj["hallucinatedMod"] == '","msg":"request openai failed"':
@@ -47,12 +41,10 @@ class HalluModified(BaseTask):
         template = self._read_prompt_template('hallu_mod.txt')
         query = template.format(
             begin=f'{obj["newsBeginning"]}',
-            hallu_continue=f'{obj["hallucinatedContinuation"]}',
-            search_documents=f'{obj["retrieve_context"]}'
+            hallu_continue=f'{obj["hallucinatedContinuation"]}'
         )
         res = self.model.safe_request(query)
-        real_res = res.split('<response>')[-1].split('</response>')[0]
-        return real_res.strip()
+        return res
 
     def _read_prompt_template(self, filename: str):
         path = os.path.join('src/prompts/', filename)

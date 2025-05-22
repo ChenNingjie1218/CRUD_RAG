@@ -7,50 +7,32 @@ from tqdm import tqdm
 from threading import Lock
 from src.llms.base import BaseLLM
 from src.tasks.base import BaseTask
-from src.retrievers.base import BaseRetriever
 import concurrent.futures
+import time
 
 class BaseEvaluator(ABC):
-    def __init__(self, task: BaseTask, model: BaseLLM, retriever: BaseRetriever,
+    def __init__(self, task: BaseTask,
         dataset: list[dict], output_dir: str = './output', num_threads: int = 40):
         """
         Args:
-            model (BaseLLM): The large language model to be evaluated.
-            retriever (BaseRetriever): The retriever to be evaluated.
             task (BaseTask): The task for evaluation.
             dataset (list[dict]): The dataset for evaluation.
             output_dir (str): The directory for result output and caching.
         """
-        self.model = model
-        self.retriever = retriever
         self.dataset = dataset
         self.task = task
         self.lock = Lock()
         self.num_threads = num_threads
 
-        collection_name = self.retriever.collection_name
-        similarity_top_k = self.retriever.similarity_top_k
-        output_dir = os.path.join(output_dir, f'{collection_name}_top{similarity_top_k}_{model.__class__.__name__}')
+        # output_dir = os.path.join(output_dir, f'')
         
         if not (os.path.exists(output_dir) and os.path.isdir(output_dir)):
             os.makedirs(output_dir)
         self.output_path = os.path.join(
-            output_dir, f'{self.task.__class__.__name__}_{model.params["model_name"]}.json'
+            output_dir, f'{self.task.__class__.__name__}.json'
         )
-        self.task.set_model(self.model, self.retriever)
 
     def task_generation(self, data_point):
-        try:
-            self.lock.acquire()
-            retrieve_context = self.task.retrieve_docs(data_point)
-            self.lock.release()
-            data_point["retrieve_context"] = retrieve_context
-
-        except Exception as e:
-            logger.warning(repr(e))
-            self.lock.release()
-            data_point["retrieve_context"] = ''
-
         return self.task.model_generation(data_point)
 
     def multithread_batch_scoring(self, dataset: list[dict], sort=True, show_progress_bar=False, contain_original_data=False) -> list[dict]:
@@ -77,7 +59,12 @@ class BaseEvaluator(ABC):
             if data_point['ID'] in saved_ids:
                 return None  # Skip results that have already been evaluated and are valid
             try:
+                # start_time = time.time()
                 generated_text = self.task_generation(data_point)
+                # end_time = time.time()
+                # 计算耗时
+                # elapsed_time = end_time - start_time
+                # logger.info(f"process_data_point检索耗时: {elapsed_time:.2f} 秒")
                 # TODO fix bugs
                 if generated_text == '","msg":"request openai failed"' or generated_text == '':
                     return None
@@ -128,7 +115,7 @@ class BaseEvaluator(ABC):
         """
         info = {
             'task': self.task.__class__.__name__, 
-            'llm': str(self.model.params),
+            # 'llm': str(self.llm.params),
         }
 
         results = self.multithread_batch_scoring(self.dataset, sort, show_progress_bar, contain_original_data)
@@ -179,7 +166,12 @@ class BaseEvaluator(ABC):
             if data_point['ID'] in saved_ids:
                 continue  # Skip results that have already been evaluated and are valid
             try:
+                start_time = time.time()
                 generated_text = self.task_generation(data_point)
+                end_time = time.time()
+                # 计算耗时
+                elapsed_time = end_time - start_time
+                logger.info(f"batch_scoring检索耗时: {elapsed_time:.2f} 秒")
                 data_point["generated_text"] = generated_text
                 result = {'id': data_point['ID'], **self.task.scoring(data_point)}
                 if contain_original_data:

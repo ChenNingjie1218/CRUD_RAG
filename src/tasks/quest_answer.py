@@ -3,19 +3,22 @@ import re
 import datetime
 from src.tasks.base import BaseTask
 from loguru import logger
+import time
+import requests
 from src.metric.common import (
     bleu_score, 
     rougeL_score, 
     bert_score,
 )
 from src.metric.quest_eval import QuestEval
+# from src.metric.quest_eval import LocalQuestEval
 
 
 class QuestAnswer(BaseTask):
     def __init__(
             self, 
             output_dir: str = './output',
-            quest_eval_model: str = "gpt-3.5-turbo",
+            quest_eval_model: str = "Qwen/Qwen3-14B",
             use_quest_eval: bool = False,
             use_bert_score: bool = False,
         ):
@@ -27,29 +30,26 @@ class QuestAnswer(BaseTask):
         self.use_bert_score = use_bert_score
         if self.use_quest_eval: 
             self.quest_eval = QuestEval(
+            # self.quest_eval = LocalQuestEval(
                 model_name=quest_eval_model, temperature=0.1, 
                 max_new_tokens=1280, task_name=self.__class__.__name__
             )
-    
-    def set_model(self, model, retriever) -> None:
-        self.model = model
-        self.retriever = retriever
-    
-    def retrieve_docs(self, obj:dict) -> str:
-        query_text = obj["questions"]
-        retrieve_context = self.retriever.search_docs(query_text)
-        retrieve_context = retrieve_context.split('\nGiven the context information')[0]
-        return retrieve_context
 
     def model_generation(self, obj:dict):
-        template = self._read_prompt_template('quest_answer.txt')
-        query = template.format(
-            question=f'{obj["questions"]}',
-            search_documents=f'{obj["retrieve_context"]}'
+        # template = self._read_prompt_template('quest_answer.txt')
+        # query = template.format(
+        #     question=f'{obj["questions"]}'
+        # )
+        # start_time = time.perf_counter()
+        response = requests.post(
+            # "http://192.168.2.2:10080/query",
+            "http://192.168.1.89:10080/query",
+            json={"query": f'{obj["questions"]}'}
         )
-        res = self.model.safe_request(query)
-        real_res = res.split('<response>')[-1].split('</response>')[0]
-        return real_res.strip()
+        # res = response.json['answer']
+        res = response.json()['answer']
+        # logger.info(f"RAG耗时: {time.perf_counter() - start_time:.2f} 秒")
+        return res
 
     def _read_prompt_template(self, filename: str):
         path = os.path.join('src/prompts/', filename)

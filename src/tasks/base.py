@@ -1,6 +1,7 @@
 import os
 import re
 import datetime
+import requests
 from abc import ABC
 from loguru import logger
 from src.metric.common import (
@@ -9,12 +10,15 @@ from src.metric.common import (
     bert_score,
 )
 from src.metric.quest_eval import QuestEval
+# from src.metric.quest_eval import LocalQuestEval
 
 class BaseTask(ABC):
     def __init__(
             self,
             output_dir: str = './output',
-            quest_eval_model: str = "gpt-3.5-turbo",
+            # quest_eval_model: str = "gpt-3.5-turbo",
+            quest_eval_model: str = "DeepSeek-R1-Distill-Qwen-7B",
+            # quest_eval_model: str = "Qwen2.5-7B-Instruct",
             use_quest_eval: bool = False,
             use_bert_score: bool = False,
         ):
@@ -25,7 +29,8 @@ class BaseTask(ABC):
         self.use_quest_eval = use_quest_eval
         self.use_bert_score = use_bert_score
         if self.use_quest_eval: 
-            self.quest_eval = QuestEval(
+            # self.quest_eval = QuestEval(
+            self.quest_eval = LocalQuestEval(
                 model_name=quest_eval_model, temperature=0.1, 
                 max_new_tokens=1280, task_name=self.__class__.__name__
             )

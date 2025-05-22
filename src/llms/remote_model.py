@@ -1,7 +1,7 @@
 import requests
 import json
 from loguru import logger
-
+from openai import OpenAI
 from src.llms.base import BaseLLM
 from importlib import import_module
 
@@ -58,26 +58,41 @@ class ChatGLM2_6B_Chat(BaseLLM):
 
 
 class Qwen_14B_Chat(BaseLLM):
+    # def request(self, query) -> str:
+    #     url = conf.Qwen_url
+    #     payload = json.dumps({
+    #         "prompt": query,
+    #         "params": {
+    #             "temperature": self.params['temperature'],
+    #             "do_sample": True,
+    #             "max_new_tokens": self.params['max_new_tokens'],
+    #             "num_return_sequences": 1,
+    #             "top_p": self.params['top_p'],
+    #             "top_k": self.params['top_k'],
+    #         }
+    #     })
+    #     headers = {
+    #     'token': conf.Qwen_token,
+    #     'Content-Type': 'application/json'
+    #     }
+    #     res = requests.request("POST", url, headers=headers, data=payload)
+    #     res = res.json()['choices'][0]
+    #     return res
     def request(self, query) -> str:
         url = conf.Qwen_url
-        payload = json.dumps({
+        payload = {
+            "model": "qwen3:14b",  # 或者 qwen2:7b 等已加载模型
             "prompt": query,
-            "params": {
-                "temperature": self.params['temperature'],
-                "do_sample": True,
-                "max_new_tokens": self.params['max_new_tokens'],
-                "num_return_sequences": 1,
-                "top_p": self.params['top_p'],
-                "top_k": self.params['top_k'],
-            }
-        })
-        headers = {
-        'token': conf.Qwen_token,
-        'Content-Type': 'application/json'
+            "stream": False
         }
-        res = requests.request("POST", url, headers=headers, data=payload)
-        res = res.json()['choices'][0]
-        return res
+
+        response = requests.post(url, json=payload)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get('response', '')
+        else:
+            raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
 
 
 class GPT(BaseLLM):
